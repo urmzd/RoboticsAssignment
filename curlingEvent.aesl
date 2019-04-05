@@ -1,0 +1,164 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+
+
+<!--list of constants-->
+
+
+<!--show keywords state-->
+<keywords flag="true"/>
+
+
+<!--node thymio-II-->
+<node nodeId="1" name="thymio-II"># Declare the state variable.
+var state
+
+# Intialize the different states.
+var STOP = 0
+var GO_1 = 1
+var TURN = 2
+var GO_2 = 3
+var REVERSE = 4
+var GO_3 = 5
+var SPIN = 6
+
+# Initialize the robot speed.
+var SPEED = 300
+
+# Initialize the black-line threshold.
+var THRESHOLD = 100
+
+# Declare a variable to store ground sensor data.
+var groundData
+
+# Declare an array to store different times.
+var timeCounter[5] = [0,0,0,0,0]
+
+# Create a timer that counts every 500ms.
+timer.period[0] = 500
+
+onevent timer0
+	
+	timeCounter[4]++ # Increase time.
+	
+	if timeCounter[4] > 120 then 
+		state = STOP # Stop robot after 60s.
+	end
+
+    if state == GO_1 then
+        timeCounter[0]++
+
+        if timeCounter[0] &lt;= 7 then # Go forward for 3.5s.
+            motor.left.target = SPEED
+            motor.right.target = SPEED
+        elseif timeCounter[0] > 7 and timeCounter[0] &lt;= 9 then # Stop for a second.
+            motor.left.target = 0
+            motor.right.target = 0
+        else
+            state = TURN # Change state.
+        end
+
+    end
+
+    if state == TURN then
+        timeCounter[1]++
+
+        if timeCounter[1] &lt;= 3 then # Turn for 1.5s.
+            motor.left.target = SPEED
+            motor.right.target = 0
+        elseif timeCounter[1] > 3 and timeCounter[1] &lt;= 5 then
+            motor.left.target = 0
+            motor.right.target = 0
+        else   
+            state = GO_2 # Change state.
+        end
+    end
+
+    if state == REVERSE then
+        timeCounter[2]++
+		
+		# Reverse for 3.5s.
+        if timeCounter[2] &lt;= 7 then
+            motor.left.target = -SPEED * 3/2
+            motor.right.target = -SPEED 
+        elseif timeCounter[2] > 7 and timeCounter[2] &lt;= 9 then
+            motor.left.target = 0
+            motor.right.target = 0
+        else
+            state = GO_3 # Change state.
+        end
+    end
+    
+    if state == GO_3 then
+    		timeCounter[3]++
+    		
+    		if timeCounter[3] &lt;= 25 then
+    			motor.left.target = SPEED
+    			motor.right.target = SPEED
+    		end
+    		
+    end
+
+onevent prox
+	
+	# Store data.
+    call math.stat(prox.ground.delta[0:1],0,0,groundData)
+	
+	# Stop state resets every variable.
+    if state == STOP then
+
+        timeCounter[0] = 0
+        timeCounter[1] = 0
+        timeCounter[2] = 0
+        timeCounter[3] = 0
+        timeCounter[4] = 0
+
+        motor.left.target = 0
+        motor.right.target = 0
+    end
+
+    if state == GO_2 then
+
+        motor.left.target = SPEED
+        motor.right.target = SPEED
+        
+        # Stop and reverse if any sensor or collection of sensor(s) detects black line.
+        if prox.ground.delta[0] &lt;= THRESHOLD or prox.ground.delta[1] &lt;= THRESHOLD or groundData &lt;= THRESHOLD then
+
+            motor.left.target = 0
+            motor.right.target = 0
+            state = REVERSE
+
+        end
+
+    end
+	
+	if state == GO_3 then
+		
+		# Stop and reverse if target is found.
+        if prox.ground.delta[0] &lt;= THRESHOLD * 2 or prox.ground.delta[1] &lt;= THRESHOLD * 2 or groundData &lt;= THRESHOLD * 2 then
+
+            motor.left.target = 0
+            motor.right.target = 0
+            state = SPIN
+
+        end
+	end
+	
+	# Spin at a high RPM.
+	if state == SPIN then
+		motor.left.target = -SPEED * 10
+		motor.right.target = SPEED * 10
+	end
+	
+onevent button.forward
+    state = GO_1
+onevent button.backward
+    state = STOP
+</node>
+
+
+</network>
