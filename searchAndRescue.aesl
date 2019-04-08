@@ -1,0 +1,232 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+
+
+<!--list of constants-->
+
+
+<!--show keywords state-->
+<keywords flag="true"/>
+
+
+<!--node thymio-II-->
+<node nodeId="1" name="thymio-II">var state
+
+var STOP = 0
+var READ = 1
+var FAWAD = 2
+var SCAN = 3
+var TURN = 4
+var STRAIGHT = 5
+var L_TURN = 6
+var FINISH = 7
+
+var THRESHOLD = 3000
+var SIDE_THRESHOLD = 3500
+var GROUND_THRESHOLD = 150
+
+var FAWAD_SPEED = 100
+var STRAIGHT_SPEED = 300
+
+var current[3] = [0,0,0]
+var SAVED[3]
+
+var RED[3] = [0,1,0]
+var GREEN[3] = [1,1,0]
+var BLUE[3] = [1,0,1]
+var WHITE[3] = [0,0,1]
+
+var circleLED[3] = [0,0,0]
+var topLED[3] = [0,0,0]
+
+var timeCounter[2] = [0,0]
+
+var groundData
+var horzData
+
+var i
+var sideSensors
+
+timer.period[0] = 500
+
+sub changeCircle
+	call leds.circle(circleLED[1], circleLED[2], 0, 0, 0, 0, 0, circleLED[0])
+sub changeTop
+	call leds.top(topLED[0], topLED[1], topLED[2])
+	
+onevent timer0
+	
+	if state == TURN then
+		timeCounter[0]++
+		
+		if timeCounter[0] &lt;= 9 then
+			motor.left.target = -FAWAD_SPEED
+			motor.right.target = -FAWAD_SPEED
+		elseif timeCounter[0] > 9 and timeCounter[0] &lt;= 11 then
+			motor.left.target = STRAIGHT_SPEED
+			motor.right.target = 0
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+			state = STRAIGHT
+		end
+	end
+	
+	if state == L_TURN then
+		timeCounter[1]++
+		
+		if timeCounter[1] &lt;= 1 then
+			motor.left.target = STRAIGHT_SPEED / 2
+			motor.right.target = STRAIGHT_SPEED / 2
+		elseif timeCounter[1] > 1 and timeCounter[1] &lt;= 4 then
+			motor.left.target = 0
+			motor.right.target = STRAIGHT_SPEED
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+			state = FAWAD
+		end
+	end
+	
+onevent prox
+	
+	call math.stat(prox.horizontal[0:4], 0,0 , horzData)
+	call math.stat(prox.ground.delta[0:1], 0,0, groundData)
+	
+	if state == FINISH then
+		motor.left.target = 0
+		motor.right.target= 0
+	end
+	
+	if state == STRAIGHT then
+		motor.left.target = STRAIGHT_SPEED
+		motor.right.target = STRAIGHT_SPEED
+		
+		if groundData &lt;= GROUND_THRESHOLD then
+			motor.left.target = 0
+			motor.right.target = 0
+			state = L_TURN
+		end
+		
+		if horzData >= THRESHOLD then
+			state = FAWAD
+		end
+	end
+
+	sideSensors = prox.horizontal[0] + prox.horizontal[4] / 2
+	
+	if state == FAWAD then
+		timeCounter[0] = 0
+		timeCounter[1] = 0
+		
+		motor.left.target = FAWAD_SPEED
+		motor.right.target = FAWAD_SPEED
+		
+		if sideSensors >= SIDE_THRESHOLD then
+			motor.left.target = 0
+			motor.right.target = 0
+			state = SCAN
+		end
+	end
+	
+	if state == SCAN then
+		for i in 1:3 do
+			if prox.horizontal[i] &lt;= THRESHOLD then
+				current[i-1] = 1
+				circleLED[i-1] = 32
+			else
+				current[i-1] = 0
+				circleLED[i-1] = 0
+			end
+		end
+		
+		if current[0] == RED[0] and current[1] == RED[1] and current[2] == RED[2] then
+			topLED[0] = 32
+			topLED[1] = 0
+			topLED[2] = 0
+		elseif current[0] == GREEN[0] and current[1] == GREEN[1] and current[2] == GREEN[2] then
+			topLED[1] = 32
+			topLED[2] = 0
+			topLED[0] = 0
+		elseif current[0] == BLUE[0] and current[1] == BLUE[1] and current[2] == BLUE[2] then
+			topLED[2] = 32
+			topLED[0] = 0
+			topLED[1] = 0
+		elseif current[0] == WHITE[0] and current[1] == WHITE[1] and current[2] == WHITE[2] then
+			for i in 0:2 do
+				topLED[i] = 32
+			end
+		else
+			for i in 0:2 do
+				topLED[i] = 0
+				circleLED[i] = 0
+			end
+		end
+		
+		if current[0] == SAVED[0] and current[1] == SAVED[1] and current[2] == SAVED[2] then
+			state = FINISH
+		else
+			state = TURN
+		end
+		
+		callsub changeCircle
+		callsub changeTop
+	end
+	
+onevent button.forward
+	
+	state = FAWAD
+	
+onevent button.right
+	state = READ
+	
+	for i in 1:3 do
+		if prox.horizontal[i] &lt;= THRESHOLD then
+			SAVED[i-1] = 1
+			circleLED[i-1] = 32
+		end
+	end
+	
+	if SAVED[0] == RED[0] and SAVED[1] == RED[1] and SAVED[2] == RED[2] then
+		topLED[0] = 32
+	elseif SAVED[0] == GREEN[0] and SAVED[1] == GREEN[1] and SAVED[2] == GREEN[2] then
+		topLED[1] = 32
+	elseif SAVED[0] == BLUE[0] and SAVED[1] == BLUE[1] and SAVED[2] == BLUE[2] then
+		topLED[2] = 32
+	elseif SAVED[0] == WHITE[0] and SAVED[1] == WHITE[1] and SAVED[2] == WHITE[2] then
+		for i in 0:2 do
+			topLED[i] = 32
+		end
+	else
+		for i in 0:2 do
+			topLED[i] = 0
+			circleLED[i] = 0
+		end
+	end
+	
+	callsub changeCircle
+	callsub changeTop
+	
+onevent button.backward
+	state = STOP
+	
+	for i in 0:2 do
+		current[i] = 0
+		circleLED[i] = 0
+		topLED[i] = 0
+		SAVED[i] = 0
+	end	
+	
+	motor.left.target = 0
+	motor.right.target = 0
+	timeCounter[0] = 0
+	timeCounter[1] = 0
+	callsub changeCircle
+	callsub changeTop
+	</node>
+
+
+</network>
