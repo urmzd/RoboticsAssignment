@@ -22,13 +22,15 @@ var SCAN = 3
 var TURN = 4
 var STRAIGHT = 5
 var L_TURN = 6
-var FINISH = 7
+var REVERSE = 7
+var R_TURN = 8
+var FINISH = 9
 
 var THRESHOLD = 3000
-var SIDE_THRESHOLD = 3500
-var GROUND_THRESHOLD = 150
+var SIDE_THRESHOLD = 2200
+var GROUND_THRESHOLD = 125
 
-var FAWAD_SPEED = 100
+var FAWAD_SPEED = 85
 var STRAIGHT_SPEED = 300
 
 var current[3] = [0,0,0]
@@ -42,7 +44,7 @@ var WHITE[3] = [0,0,1]
 var circleLED[3] = [0,0,0]
 var topLED[3] = [0,0,0]
 
-var timeCounter[2] = [0,0]
+var timeCounter[4] = [0,0,0,0]
 
 var groundData
 var horzData
@@ -50,7 +52,7 @@ var horzData
 var i
 var sideSensors
 
-timer.period[0] = 500
+timer.period[0] = 100
 
 sub changeCircle
 	call leds.circle(circleLED[1], circleLED[2], 0, 0, 0, 0, 0, circleLED[0])
@@ -62,10 +64,10 @@ onevent timer0
 	if state == TURN then
 		timeCounter[0]++
 		
-		if timeCounter[0] &lt;= 9 then
+		if timeCounter[0] &lt;= 10 * 5 then
 			motor.left.target = -FAWAD_SPEED
 			motor.right.target = -FAWAD_SPEED
-		elseif timeCounter[0] > 9 and timeCounter[0] &lt;= 11 then
+		elseif timeCounter[0] > 10 * 5 and timeCounter[0] &lt;= 13 * 5 then
 			motor.left.target = STRAIGHT_SPEED
 			motor.right.target = 0
 		else
@@ -78,10 +80,10 @@ onevent timer0
 	if state == L_TURN then
 		timeCounter[1]++
 		
-		if timeCounter[1] &lt;= 1 then
-			motor.left.target = STRAIGHT_SPEED / 2
-			motor.right.target = STRAIGHT_SPEED / 2
-		elseif timeCounter[1] > 1 and timeCounter[1] &lt;= 4 then
+		if timeCounter[1] &lt;= 7 then
+			motor.left.target = STRAIGHT_SPEED / 3 + 40
+			motor.right.target = STRAIGHT_SPEED / 3 + 40
+		elseif timeCounter[1] > 7 and timeCounter[1] &lt;= 23 then
 			motor.left.target = 0
 			motor.right.target = STRAIGHT_SPEED
 		else
@@ -90,17 +92,39 @@ onevent timer0
 			state = FAWAD
 		end
 	end
+
+	if state == R_TURN then
+		timeCounter[2]++
+		
+		if timeCounter[2] &lt;= 4 * 5 then
+			motor.left.target = 0
+			motor.right.target = STRAIGHT_SPEED
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+			state = FINISH
+		end
+	end
 	
+	if state == FINISH then
+		timeCounter[3]++
+		
+		if timeCounter[3] &lt;= 5 * 5 then
+			motor.left.target = STRAIGHT_SPEED
+			motor.right.target = STRAIGHT_SPEED
+		else
+			if groundData >= 800 then
+				motor.left.target = 0
+				motor.right.target = 0
+			end
+		end
+	end
 onevent prox
 	
 	call math.stat(prox.horizontal[0:4], 0,0 , horzData)
 	call math.stat(prox.ground.delta[0:1], 0,0, groundData)
-	
-	if state == FINISH then
-		motor.left.target = 0
-		motor.right.target= 0
-	end
-	
+    sideSensors = (prox.horizontal[0] + prox.horizontal[4]) / 2
+
 	if state == STRAIGHT then
 		motor.left.target = STRAIGHT_SPEED
 		motor.right.target = STRAIGHT_SPEED
@@ -115,9 +139,7 @@ onevent prox
 			state = FAWAD
 		end
 	end
-
-	sideSensors = prox.horizontal[0] + prox.horizontal[4] / 2
-	
+		
 	if state == FAWAD then
 		timeCounter[0] = 0
 		timeCounter[1] = 0
@@ -125,8 +147,18 @@ onevent prox
 		motor.left.target = FAWAD_SPEED
 		motor.right.target = FAWAD_SPEED
 		
-		if sideSensors >= SIDE_THRESHOLD then
+		if prox.ground.delta[0] > GROUND_THRESHOLD + 15 then
+			motor.left.target = 20
+			motor.right.target = 0
+		end
+		
+		if prox.ground.delta[1] >= GROUND_THRESHOLD + 15 then
+			motor.right.target = 20
 			motor.left.target = 0
+		end
+				
+		if sideSensors >= SIDE_THRESHOLD then
+			motor.left.target = 20
 			motor.right.target = 0
 			state = SCAN
 		end
@@ -167,13 +199,24 @@ onevent prox
 		end
 		
 		if current[0] == SAVED[0] and current[1] == SAVED[1] and current[2] == SAVED[2] then
-			state = FINISH
+			state = REVERSE
 		else
 			state = TURN
 		end
 		
 		callsub changeCircle
 		callsub changeTop
+	end
+	
+	if state == REVERSE then
+		motor.left.target = -STRAIGHT_SPEED
+		motor.right.target = -STRAIGHT_SPEED
+		
+		if groundData >= 800 then
+			motor.left.target = 0
+			motor.right.target = 0
+			state = R_TURN
+		end
 	end
 	
 onevent button.forward
