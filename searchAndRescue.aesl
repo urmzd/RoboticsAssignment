@@ -226,6 +226,15 @@ onevent button.forward
 onevent button.right
 	state = READ
 	
+	for i in 0:2 do
+			topLED[i] = 0
+			circleLED[i] = 0
+			timeCounter[i] = 0
+			current[i] = 0
+			SAVED[i] = 0
+			timeCounter[i] = 0
+	end
+	
 	for i in 1:3 do
 		if prox.horizontal[i] &lt;= THRESHOLD then
 			SAVED[i-1] = 1
@@ -242,12 +251,7 @@ onevent button.right
 	elseif SAVED[0] == WHITE[0] and SAVED[1] == WHITE[1] and SAVED[2] == WHITE[2] then
 		for i in 0:2 do
 			topLED[i] = 32
-		end
-	else
-		for i in 0:2 do
-			topLED[i] = 0
-			circleLED[i] = 0
-		end
+		end	
 	end
 	
 	callsub changeCircle
@@ -261,6 +265,7 @@ onevent button.backward
 		circleLED[i] = 0
 		topLED[i] = 0
 		SAVED[i] = 0
+		timeCounter[i] = 0
 	end	
 	
 	motor.left.target = 0
